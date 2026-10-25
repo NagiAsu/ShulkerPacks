@@ -12,6 +12,10 @@
  *    opening runs at HIGH priority and ignores clicks other plugins already cancelled.
  *  - A per-tick check closes the box without saving if the item is no longer in the player's inventory.
  *  - The box is opened on the next tick, after re-checking the slot (avoids client inventory desync).
+ *
+ * Modified by NagiAsu, 2026-10-26 (1.8.0.1):
+ *  - While a box opened by this plugin is showing, right clicking another box in the player's own inventory switches
+ *    to it: the current box is saved and closed first, then the next one opens (upstream behaviour, lost in 1.8.0.0).
  */
 package me.darkolythe.shulkerpacks;
 
@@ -212,11 +216,21 @@ public class ShulkerListener implements Listener {
         pending.add(uuid);
         Bukkit.getScheduler().runTask(main, () -> {
             pending.remove(uuid);
-            if (!player.isOnline() || sessions.containsKey(uuid)) {
+            if (!player.isOnline()) {
                 return;
             }
             // re-check everything: one tick has passed
-            if (player.getOpenInventory().getTopInventory().getType() != InventoryType.CRAFTING || !isEmpty(player.getItemOnCursor())) {
+            // the screen must be the player's own inventory, or a box this plugin opened (switching to another box)
+            Session current = sessions.get(uuid);
+            Inventory top = player.getOpenInventory().getTopInventory();
+            boolean switching = current != null && top == current.gui;
+            if (current != null && !switching) {
+                return;
+            }
+            if ((!switching && top.getType() != InventoryType.CRAFTING) || !isEmpty(player.getItemOnCursor())) {
+                return;
+            }
+            if (switching && slot == current.slot) {
                 return;
             }
             ItemStack item = player.getInventory().getItem(slot);
@@ -226,6 +240,13 @@ public class ShulkerListener implements Listener {
             if (main.getPvpTimer(player)) {
                 player.sendMessage(main.prefix + ChatColor.RED + "You cannot open shulkerboxes in combat!");
                 return;
+            }
+            if (switching) {
+                // save the current box and remove its marker before the next one replaces the screen
+                finish(player, current);
+                if (hasMarker(item, current.id)) {
+                    return;
+                }
             }
             open(player, slot, item);
         });
@@ -370,6 +391,21 @@ public class ShulkerListener implements Listener {
                 || (clickedOwn && event.isShiftClick() && isShulker(event.getCurrentItem()))) {
             event.setCancelled(true);
             return;
+        }
+        // right click another box in the player's own inventory: switch to it
+        if (clickedOwn && click == (main.shiftclicktoopen ? ClickType.SHIFT_RIGHT : ClickType.RIGHT)
+                && isShulker(event.getCurrentItem()) && event.getCurrentItem().getAmount() == 1
+                && main.canopenininventory && player.hasPermission("shulkerpacks.use")
+                && player.hasPermission("shulkerpacks.open_in_inventory")) {
+            if (!isEmpty(event.getCursor()) || pending.contains(player.getUniqueId())) {
+                event.setCancelled(true);
+                return;
+            }
+            if (checkCooldown(player)) {
+                event.setCancelled(true);
+                scheduleOpen(player, event.getSlot());
+                return;
+            }
         }
         scheduleSave(player);
     }
