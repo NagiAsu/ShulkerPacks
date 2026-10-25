@@ -1,8 +1,10 @@
 name: ShulkerPacks
-version: 1.8.0
+version: 1.8.0.0
 main: me.darkolythe.shulkerpacks.ShulkerPacks
-api-version: 1.16
-authors: [Darkolythe,Kerm,avixk]
+api-version: '1.21.4'
+description: Open shulker boxes from your own inventory without placing them down (NagiAsu fork of christopherwalkerml/ShulkerPacks)
+authors: [Darkolythe, Kerm, avixk, NagiAsu]
+website: https://github.com/NagiAsu/ShulkerPacks
 
 commands:
   shulkerpacks:
@@ -12,14 +14,20 @@ commands:
 
 permissions:
   shulkerpacks.use:
-    description: gives player permission to open shulker boxes in their inventory
+    description: gives player permission to open shulker boxes
     default: op
   shulkerpacks.open_in_air:
     description: allows the player to open the shulkerbox in the air (if config enables it) if the player has "shulkerpacks.use"
     default: true
   shulkerpacks.open_in_inventory:
-    description: allows the player to open the shulkerbox in their inventory (if config enables it) if the player has "shulkerpacks.use"
+    description: allows the player to open the shulkerbox in their own inventory (if config enables it) if the player has "shulkerpacks.use"
     default: true
   shulkerpacks.open_in_chests:
-    description: allows the player to open the shulkerbox in a chest (if config enables it) if the player has "shulkerpacks.use"
-    default: true
+    description: no longer used since 1.8.0.0 (shulker boxes only open from the player's own inventory)
+    default: false
+  shulkerpacks.open_in_virtual_inventory:
+    description: no longer used since 1.8.0.0 (shulker boxes only open from the player's own inventory)
+    default: false
+  shulkerpacks.admin:
+    description: receives warnings when a player opens shulker boxes too quickly or tries to drop an open one
+    default: op

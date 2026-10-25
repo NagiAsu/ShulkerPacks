@@ -1,0 +1,28 @@
+# 編譯檢查：這個 repo 是 public，不能呼叫組織 private repo 的共用流程，所以步驟直接寫在這裡
+name: 編譯檢查
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: mvn package
+        run: mvn -B -ntp -DskipTests package
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ShulkerPacks
+          path: target/ShulkerPacks-*.jar
