@@ -1,5 +1,5 @@
 name: ShulkerPacks
-version: 1.8.0.1
+version: 1.8.0.2
 main: me.darkolythe.shulkerpacks.ShulkerPacks
 api-version: '1.21.4'
 description: Open shulker boxes from your own inventory without placing them down (NagiAsu fork of christopherwalkerml/ShulkerPacks)

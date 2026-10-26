@@ -16,6 +16,12 @@
  * Modified by NagiAsu, 2026-10-26 (1.8.0.1):
  *  - While a box opened by this plugin is showing, right clicking another box in the player's own inventory switches
  *    to it: the current box is saved and closed first, then the next one opens (upstream behaviour, lost in 1.8.0.0).
+ *
+ * Modified by NagiAsu, 2026-10-27 (1.8.0.2):
+ *  - "Only from the player's own inventory" now means where the box is: a box in the player's own inventory
+ *    (lower half of the screen) can be opened while a chest, barrel, ender chest or other vanilla container is open.
+ *    Boxes inside the container (upper half) still never open. Plugin GUIs (custom or no holder) still block opening.
+ *  - Closing the box returns to the game, like upstream with open-previous-inventory: false.
  */
 package me.darkolythe.shulkerpacks;
 
@@ -27,7 +33,10 @@ import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
+import org.bukkit.block.BlockState;
+import org.bukkit.block.DoubleChest;
 import org.bukkit.block.ShulkerBox;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -130,7 +139,43 @@ public class ShulkerListener implements Listener {
     }
 
     /*
-    Opening: only from the player's own inventory screen
+    Which screens a box from the player's own inventory may be opened over: the player's own inventory screen,
+    a box this plugin opened (switching), or a vanilla container (block, entity, ender chest).
+    Plugin GUIs (custom holder, or no holder and no location) are never replaced.
+     */
+    private boolean canOpenOver(Inventory top, Session current) {
+        if (top.getType() == InventoryType.CRAFTING || top.getType() == InventoryType.ENDER_CHEST) {
+            return true;
+        }
+        if (current != null && top == current.gui) {
+            return true;
+        }
+        Object holder = top.getHolder(false);
+        if (holder instanceof BlockState || holder instanceof DoubleChest || holder instanceof Entity) {
+            return true;
+        }
+        return holder == null && top.getLocation() != null;
+    }
+
+    /*
+    True if the click is on a real slot of the player's own inventory holding this exact item
+    (some views report special slots, e.g. a crafter's result, as player slots)
+     */
+    private static boolean isOwnSlot(InventoryClickEvent event, Player player) {
+        if (event.getClickedInventory() == null || event.getClickedInventory() != player.getInventory()) {
+            return false;
+        }
+        InventoryType.SlotType type = event.getSlotType();
+        if (type != InventoryType.SlotType.CONTAINER && type != InventoryType.SlotType.QUICKBAR) {
+            return false;
+        }
+        ItemStack inSlot = player.getInventory().getItem(event.getSlot());
+        ItemStack clicked = event.getCurrentItem();
+        return inSlot != null && clicked != null && inSlot.getAmount() == clicked.getAmount() && inSlot.isSimilar(clicked);
+    }
+
+    /*
+    Opening: only boxes in the player's own inventory
      */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onOpenClick(InventoryClickEvent event) {
@@ -141,11 +186,8 @@ public class ShulkerListener implements Listener {
         if (sessions.containsKey(player.getUniqueId()) || pending.contains(player.getUniqueId())) {
             return;
         }
-        // the open screen must be the player's own inventory (no chest, crafter, plugin GUI, ...)
-        if (event.getView().getTopInventory().getType() != InventoryType.CRAFTING) {
-            return;
-        }
-        if (event.getClickedInventory() == null || event.getClickedInventory() != player.getInventory()) {
+        // the box must be in the player's own inventory; the upper half may be a vanilla container, never a plugin GUI
+        if (!canOpenOver(event.getView().getTopInventory(), null) || !isOwnSlot(event, player)) {
             return;
         }
         if (event.getClick() != (main.shiftclicktoopen ? ClickType.SHIFT_RIGHT : ClickType.RIGHT)) {
@@ -227,7 +269,7 @@ public class ShulkerListener implements Listener {
             if (current != null && !switching) {
                 return;
             }
-            if ((!switching && top.getType() != InventoryType.CRAFTING) || !isEmpty(player.getItemOnCursor())) {
+            if ((!switching && !canOpenOver(top, null)) || !isEmpty(player.getItemOnCursor())) {
                 return;
             }
             if (switching && slot == current.slot) {
@@ -393,7 +435,7 @@ public class ShulkerListener implements Listener {
             return;
         }
         // right click another box in the player's own inventory: switch to it
-        if (clickedOwn && click == (main.shiftclicktoopen ? ClickType.SHIFT_RIGHT : ClickType.RIGHT)
+        if (clickedOwn && isOwnSlot(event, player) && click == (main.shiftclicktoopen ? ClickType.SHIFT_RIGHT : ClickType.RIGHT)
                 && isShulker(event.getCurrentItem()) && event.getCurrentItem().getAmount() == 1
                 && main.canopenininventory && player.hasPermission("shulkerpacks.use")
                 && player.hasPermission("shulkerpacks.open_in_inventory")) {
