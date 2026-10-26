@@ -8,6 +8,12 @@ This is a fork of [christopherwalkerml/ShulkerPacks](https://github.com/christop
 
 版號在上游版號後加一位：`1.8.0.0` 起。插件名稱、資料夾（`plugins/ShulkerPacks/`）、package、指令、權限節點和上游相同，沿用上游的 `config.yml` 就能直接換 jar。
 
+### 1.8.0.2
+
+- 「只能在自己的背包開」改成看**盒子放在哪裡**：盒子在自己的物品欄（畫面下半部，含快捷欄）就能開，上半部開著箱子、木桶、終界箱等原版容器也可以
+- 上半部容器裡的盒子照樣不開；上半部是其他插件的 GUI 時也不開（物品欄的盒子也不開）
+- 關掉盒子後回到遊戲畫面，不會回到原本的容器（和上游 `open-previous-inventory: false` 相同）
+
 ### 1.8.0.1
 
 - 開著盒子時，可以直接右鍵背包裡的另一個盒子切換過去（先存好目前這個，再開下一個）。1.8.0.0 擋掉了這個上游原本就有的用法
@@ -15,7 +21,7 @@ This is a fork of [christopherwalkerml/ShulkerPacks](https://github.com/christop
 
 ### 1.8.0.0
 
-- **只能在玩家自己的背包畫面打開界伏盒**（或拿在手上對空氣右鍵，見 `canopeninair`）。箱子、終界箱、木桶、漏斗、投擲器、發射器、合成器、實體背包、其他插件的 GUI 一律不開
+- **只能在玩家自己的背包畫面打開界伏盒**（或拿在手上對空氣右鍵，見 `canopeninair`）。箱子、終界箱、木桶、漏斗、投擲器、發射器、合成器、實體背包、其他插件的 GUI 一律不開（1.8.0.2 起改成看盒子放在哪裡，見上）
   - `canopeninchests`、`canopeninenderchest`、`canopeninbarrels`、`canopeninvirtualinventory`、`blacklistedinventories`、`open-previous-inventory` 不再使用（設定檔裡留著也沒關係）
 - 開著的界伏盒改用「背包格子＋物品上的暫時標記」辨認，取代 `ItemStack.equals` 與介面標題比對；關閉時拿掉標記
 - 開著時不能移動那個界伏盒（拿起、數字鍵、副手交換、丟出），也不能把界伏盒放進界伏盒。這些檢查在 LOWEST 優先度；開盒在 HIGH 優先度、略過其他插件已取消的點擊
