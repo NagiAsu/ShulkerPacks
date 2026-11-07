@@ -22,6 +22,13 @@
  *    (lower half of the screen) can be opened while a chest, barrel, ender chest or other vanilla container is open.
  *    Boxes inside the container (upper half) still never open. Plugin GUIs (custom or no holder) still block opening.
  *  - Closing the box returns to the game, like upstream with open-previous-inventory: false.
+ *
+ * Modified by NagiAsu, 2026-11-08 (1.8.0.3):
+ *  - Vanilla screens that have no storage of their own (anvil, grindstone, smithing table, loom, stonecutter,
+ *    cartography table, enchanting table, beacon) are now recognised as vanilla as well, so a box in the
+ *    player's own inventory opens over them too. Their inventory holder only points at the block
+ *    (BlockInventoryHolder), it is not the block state itself, so 1.8.0.2 treated them as plugin GUIs.
+ *  - Plugin GUIs are still never replaced: an inventory made with Bukkit.createInventory has no location.
  */
 package me.darkolythe.shulkerpacks;
 
@@ -55,6 +62,7 @@ import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.EquipmentSlot;
+import org.bukkit.inventory.BlockInventoryHolder;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
@@ -140,8 +148,8 @@ public class ShulkerListener implements Listener {
 
     /*
     Which screens a box from the player's own inventory may be opened over: the player's own inventory screen,
-    a box this plugin opened (switching), or a vanilla container (block, entity, ender chest).
-    Plugin GUIs (custom holder, or no holder and no location) are never replaced.
+    a box this plugin opened (switching), or any vanilla screen (block, entity, ender chest).
+    Plugin GUIs are never replaced.
      */
     private boolean canOpenOver(Inventory top, Session current) {
         if (top.getType() == InventoryType.CRAFTING || top.getType() == InventoryType.ENDER_CHEST) {
@@ -151,10 +159,15 @@ public class ShulkerListener implements Listener {
             return true;
         }
         Object holder = top.getHolder(false);
+        // chests, barrels, furnaces (the block state itself), double chests, and entity inventories
         if (holder instanceof BlockState || holder instanceof DoubleChest || holder instanceof Entity) {
             return true;
         }
-        return holder == null && top.getLocation() != null;
+        // Screens a block opens but does not store anything in (anvil, grindstone, smithing table, loom,
+        // stonecutter, cartography table, enchanting table, beacon): the holder is only a pointer to the block,
+        // and some of them have no holder at all. They do have the block's location, while an inventory made
+        // with Bukkit.createInventory - every plugin GUI - never has one.
+        return (holder == null || holder instanceof BlockInventoryHolder) && top.getLocation() != null;
     }
 
     /*
