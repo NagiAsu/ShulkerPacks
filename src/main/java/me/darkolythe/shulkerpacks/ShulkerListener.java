@@ -25,10 +25,13 @@
  *
  * Modified by NagiAsu, 2026-11-08 (1.8.0.3):
  *  - Vanilla screens that have no storage of their own (anvil, grindstone, smithing table, loom, stonecutter,
- *    cartography table, enchanting table, beacon) are now recognised as vanilla as well, so a box in the
- *    player's own inventory opens over them too. Their inventory holder only points at the block
- *    (BlockInventoryHolder), it is not the block state itself, so 1.8.0.2 treated them as plugin GUIs.
- *  - Plugin GUIs are still never replaced: an inventory made with Bukkit.createInventory has no location.
+ *    cartography table, enchanting table, beacon) now count as vanilla as well, so a box in the player's own
+ *    inventory opens over them too. 1.8.0.2 asked whether the inventory holder was the block state itself,
+ *    which these screens have no reason to be, so it treated them as plugin GUIs.
+ *  - A screen is no longer judged by the type of its holder but by the world: the block it says it belongs to
+ *    has to be there and has to be a block that opens this kind of screen. The holder type was not a safe test
+ *    in either direction - a plugin can open a real anvil, grindstone or chest menu anywhere (Player#openAnvil,
+ *    MenuType#create, the AnvilGUI library) and get exactly the same holder a real block would.
  */
 package me.darkolythe.shulkerpacks;
 
@@ -36,12 +39,12 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
 import org.bukkit.block.BlockState;
-import org.bukkit.block.DoubleChest;
 import org.bukkit.block.ShulkerBox;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
@@ -61,8 +64,8 @@ import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
-import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.BlockInventoryHolder;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
@@ -71,6 +74,7 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -147,27 +151,59 @@ public class ShulkerListener implements Listener {
     }
 
     /*
-    Which screens a box from the player's own inventory may be opened over: the player's own inventory screen,
-    a box this plugin opened (switching), or any vanilla screen (block, entity, ender chest).
-    Plugin GUIs are never replaced.
+    Blocks that open a screen but keep nothing in it, so there is no block inventory to compare against.
      */
-    private boolean canOpenOver(Inventory top, Session current) {
-        if (top.getType() == InventoryType.CRAFTING || top.getType() == InventoryType.ENDER_CHEST) {
+    private static final Map<Material, InventoryType> BLOCK_SCREENS = new EnumMap<>(Material.class);
+
+    static {
+        BLOCK_SCREENS.put(Material.ANVIL, InventoryType.ANVIL);
+        BLOCK_SCREENS.put(Material.CHIPPED_ANVIL, InventoryType.ANVIL);
+        BLOCK_SCREENS.put(Material.DAMAGED_ANVIL, InventoryType.ANVIL);
+        BLOCK_SCREENS.put(Material.GRINDSTONE, InventoryType.GRINDSTONE);
+        BLOCK_SCREENS.put(Material.SMITHING_TABLE, InventoryType.SMITHING);
+        BLOCK_SCREENS.put(Material.LOOM, InventoryType.LOOM);
+        BLOCK_SCREENS.put(Material.STONECUTTER, InventoryType.STONECUTTER);
+        BLOCK_SCREENS.put(Material.CARTOGRAPHY_TABLE, InventoryType.CARTOGRAPHY);
+        BLOCK_SCREENS.put(Material.ENCHANTING_TABLE, InventoryType.ENCHANTING);
+        BLOCK_SCREENS.put(Material.BEACON, InventoryType.BEACON);
+        BLOCK_SCREENS.put(Material.CRAFTING_TABLE, InventoryType.WORKBENCH);
+        BLOCK_SCREENS.put(Material.ENDER_CHEST, InventoryType.ENDER_CHEST);
+    }
+
+    /*
+    Which screens a box from the player's own inventory may be opened over: the player's own inventory screen,
+    an entity's inventory, or a screen a real block in the world opened. Plugin GUIs are never replaced.
+
+    The test is the world, not the holder. A plugin can open a real anvil, grindstone or chest menu from
+    anywhere - Player#openAnvil, MenuType#create, the AnvilGUI library - and the holder is then exactly what
+    a real block would give. What such a menu cannot have is a matching block: it points at the player's feet,
+    or at 0,0,0. So ask the block the screen says it belongs to whether it opens this kind of screen.
+     */
+    private boolean canOpenOver(Inventory top) {
+        InventoryType type = top.getType();
+        // the player's own inventory screen
+        if (type == InventoryType.CRAFTING) {
             return true;
         }
-        if (current != null && top == current.gui) {
-            return true;
-        }
+        // Read the holder first: for several screens it is what fills in the location below. Do not reorder.
         Object holder = top.getHolder(false);
-        // chests, barrels, furnaces (the block state itself), double chests, and entity inventories
-        if (holder instanceof BlockState || holder instanceof DoubleChest || holder instanceof Entity) {
+        // the player's own ender chest, a villager's trades, a horse, a minecart with a chest
+        if (holder instanceof Entity) {
             return true;
         }
-        // Screens a block opens but does not store anything in (anvil, grindstone, smithing table, loom,
-        // stonecutter, cartography table, enchanting table, beacon): the holder is only a pointer to the block,
-        // and some of them have no holder at all. They do have the block's location, while an inventory made
-        // with Bukkit.createInventory - every plugin GUI - never has one.
-        return (holder == null || holder instanceof BlockInventoryHolder) && top.getLocation() != null;
+        Location at = top.getLocation();
+        if (at == null || at.getWorld() == null
+                || !at.getWorld().isChunkLoaded(at.getBlockX() >> 4, at.getBlockZ() >> 4)) {
+            return false;
+        }
+        BlockState state = at.getBlock().getState(false);
+        // a block that keeps its contents: chest, trapped chest, barrel, furnace, brewing stand, hopper,
+        // dropper, dispenser, crafter, a placed shulker box, a lectern (one half of a double chest reports
+        // the whole double inventory, which is of the same type)
+        if (state instanceof BlockInventoryHolder) {
+            return ((BlockInventoryHolder) state).getInventory().getType() == type;
+        }
+        return BLOCK_SCREENS.get(state.getType()) == type;
     }
 
     /*
@@ -200,7 +236,7 @@ public class ShulkerListener implements Listener {
             return;
         }
         // the box must be in the player's own inventory; the upper half may be a vanilla container, never a plugin GUI
-        if (!canOpenOver(event.getView().getTopInventory(), null) || !isOwnSlot(event, player)) {
+        if (!canOpenOver(event.getView().getTopInventory()) || !isOwnSlot(event, player)) {
             return;
         }
         if (event.getClick() != (main.shiftclicktoopen ? ClickType.SHIFT_RIGHT : ClickType.RIGHT)) {
@@ -282,7 +318,7 @@ public class ShulkerListener implements Listener {
             if (current != null && !switching) {
                 return;
             }
-            if ((!switching && !canOpenOver(top, null)) || !isEmpty(player.getItemOnCursor())) {
+            if ((!switching && !canOpenOver(top)) || !isEmpty(player.getItemOnCursor())) {
                 return;
             }
             if (switching && slot == current.slot) {
