@@ -1,5 +1,6 @@
-# NagiAsu fork 1.8.0.0: shulker boxes only open from the player's own inventory screen (or from the hand, see canopeninair).
-# Chests, ender chests, barrels, hoppers, dispensers, crafters and plugin GUIs are never used.
+# NagiAsu fork: shulker boxes only open from the player's own inventory (or from the hand, see canopeninair).
+# A box in the lower half of the screen opens while a vanilla screen is up - a chest, barrel, furnace, anvil,
+# grindstone and so on. A box inside the container never opens, and neither does one while a plugin GUI is up.
 # canopeninchests, canopeninenderchest, canopeninbarrels, canopeninvirtualinventory, blacklistedinventories and
 # open-previous-inventory from older versions are ignored.
 
