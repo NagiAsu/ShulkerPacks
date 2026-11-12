@@ -71,6 +71,7 @@ import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.BlockInventoryHolder;
+import org.bukkit.inventory.CrafterInventory;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
@@ -248,7 +249,7 @@ public class ShulkerListener implements Listener {
     every version.
      */
     private static int crafterOwnSlot(InventoryClickEvent event) {
-        if (event.getView().countSlots() != 46) {
+        if (!(event.getView().getTopInventory() instanceof CrafterInventory)) {
             return -1;
         }
         int raw = event.getRawSlot();
