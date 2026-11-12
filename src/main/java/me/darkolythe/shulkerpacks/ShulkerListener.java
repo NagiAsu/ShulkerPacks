@@ -32,6 +32,12 @@
  *    has to be there and has to be a block that opens this kind of screen. The holder type was not a safe test
  *    in either direction - a plugin can open a real anvil, grindstone or chest menu anywhere (Player#openAnvil,
  *    MenuType#create, the AnvilGUI library) and get exactly the same holder a real block would.
+ *
+ * Modified by NagiAsu, 2026-11-13 (1.8.0.4):
+ *  - A box in the player's own inventory now opens while a crafter is open on Paper 1.21.4 as well. Paper 1.21.4
+ *    counts the crafter's result slot as part of the crafter's inventory, so every player slot below a crafter is
+ *    reported one off and the item in the reported slot never matched the clicked one. On a crafter screen the
+ *    slot is now worked out from the raw slot. The result slot still never opens.
  */
 package me.darkolythe.shulkerpacks;
 
@@ -207,20 +213,52 @@ public class ShulkerListener implements Listener {
     }
 
     /*
-    True if the click is on a real slot of the player's own inventory holding this exact item
-    (some views report special slots, e.g. a crafter's result, as player slots)
+    The slot of the player's own inventory that was clicked, or -1 if the click is not on a real slot of the
+    player's own inventory holding this exact item (some views report special slots, e.g. a crafter's result,
+    as player slots)
      */
-    private static boolean isOwnSlot(InventoryClickEvent event, Player player) {
-        if (event.getClickedInventory() == null || event.getClickedInventory() != player.getInventory()) {
-            return false;
+    private static int ownSlot(InventoryClickEvent event, Player player) {
+        int slot;
+        if (event.getView().getTopInventory().getType() == InventoryType.CRAFTER) {
+            slot = crafterOwnSlot(event);
+        } else {
+            if (event.getClickedInventory() == null || event.getClickedInventory() != player.getInventory()) {
+                return -1;
+            }
+            InventoryType.SlotType type = event.getSlotType();
+            if (type != InventoryType.SlotType.CONTAINER && type != InventoryType.SlotType.QUICKBAR) {
+                return -1;
+            }
+            slot = event.getSlot();
         }
-        InventoryType.SlotType type = event.getSlotType();
-        if (type != InventoryType.SlotType.CONTAINER && type != InventoryType.SlotType.QUICKBAR) {
-            return false;
+        if (slot < 0) {
+            return -1;
         }
-        ItemStack inSlot = player.getInventory().getItem(event.getSlot());
+        ItemStack inSlot = player.getInventory().getItem(slot);
         ItemStack clicked = event.getCurrentItem();
-        return inSlot != null && clicked != null && inSlot.getAmount() == clicked.getAmount() && inSlot.isSimilar(clicked);
+        boolean same = inSlot != null && clicked != null && inSlot.getAmount() == clicked.getAmount() && inSlot.isSimilar(clicked);
+        return same ? slot : -1;
+    }
+
+    /*
+    The crafter screen is 9 crafter slots (raw 0-8), the player's inventory (raw 9-35 are slots 9-35, raw 36-44
+    the hotbar 0-8) and the result (raw 45). Paper 1.21.4 counts the result as part of the crafter's inventory,
+    so it reports raw slot 9 as the crafter's, the other player slots one off (raw 36 as slot 35) and the result
+    as hotbar slot 8. Newer Paper versions fix this. Work the slot out from the raw slot, which is the same on
+    every version.
+     */
+    private static int crafterOwnSlot(InventoryClickEvent event) {
+        if (event.getView().countSlots() != 46) {
+            return -1;
+        }
+        int raw = event.getRawSlot();
+        if (raw >= 9 && raw <= 35) {
+            return raw;
+        }
+        if (raw >= 36 && raw <= 44) {
+            return raw - 36;
+        }
+        return -1;
     }
 
     /*
@@ -236,7 +274,11 @@ public class ShulkerListener implements Listener {
             return;
         }
         // the box must be in the player's own inventory; the upper half may be a vanilla container, never a plugin GUI
-        if (!canOpenOver(event.getView().getTopInventory()) || !isOwnSlot(event, player)) {
+        if (!canOpenOver(event.getView().getTopInventory())) {
+            return;
+        }
+        int slot = ownSlot(event, player);
+        if (slot < 0) {
             return;
         }
         if (event.getClick() != (main.shiftclicktoopen ? ClickType.SHIFT_RIGHT : ClickType.RIGHT)) {
@@ -259,7 +301,7 @@ public class ShulkerListener implements Listener {
             return;
         }
         event.setCancelled(true);
-        scheduleOpen(player, event.getSlot());
+        scheduleOpen(player, slot);
     }
 
     /*
@@ -484,7 +526,7 @@ public class ShulkerListener implements Listener {
             return;
         }
         // right click another box in the player's own inventory: switch to it
-        if (clickedOwn && isOwnSlot(event, player) && click == (main.shiftclicktoopen ? ClickType.SHIFT_RIGHT : ClickType.RIGHT)
+        if (clickedOwn && ownSlot(event, player) == event.getSlot() && click == (main.shiftclicktoopen ? ClickType.SHIFT_RIGHT : ClickType.RIGHT)
                 && isShulker(event.getCurrentItem()) && event.getCurrentItem().getAmount() == 1
                 && main.canopenininventory && player.hasPermission("shulkerpacks.use")
                 && player.hasPermission("shulkerpacks.open_in_inventory")) {
