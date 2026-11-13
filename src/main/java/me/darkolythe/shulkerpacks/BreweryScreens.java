@@ -7,13 +7,13 @@
 package me.darkolythe.shulkerpacks;
 
 import org.bukkit.Bukkit;
-import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.plugin.Plugin;
 
 import java.lang.reflect.Field;
+import java.util.Collection;
 
 /*
 The barrel and sealing table screens of the Brewery plugin (optional, looked up at run time by reflection, so
@@ -27,16 +27,23 @@ The class name alone is not trusted: any plugin can declare a class with the sam
 Brewery's only if
  - the holder class was loaded by the running Brewery plugin itself,
  - the screen is that holder's own inventory, and
- - for a barrel: Brewery still has this very barrel registered at its spigot block;
+ - for a barrel: this very barrel is in Brewery's list of barrels (a removed barrel is not);
    for a sealing table: it was opened for this player.
 Anything else, including any reflection failure (e.g. a Brewery version that renamed these members), is
-treated as a plugin GUI and blocks opening, as before.
+treated as a plugin GUI and blocks opening, as before. Only reads Brewery's state, never calls into it.
  */
 final class BreweryScreens {
 
     private static final String PLUGIN = "Brewery";
     private static final String BARREL = "com.dre.brewery.Barrel";
     private static final String SEALER = "com.dre.brewery.BSealer";
+
+    // looked up once per Brewery class (a reload of Brewery gives new classes)
+    private static Class<?> barrelType;
+    private static Field barrelList;
+    private static Class<?> sealerType;
+    private static Field sealerPlayer;
+    private static boolean warned;
 
     private BreweryScreens() {
     }
@@ -59,35 +66,48 @@ final class BreweryScreens {
             if (own == null || !own.equals(top)) {
                 return false;
             }
-            return name.equals(BARREL) ? isRegisteredBarrel(type, holder, player) : openedFor(type, holder, player);
+            return name.equals(BARREL) ? isRegisteredBarrel(type, holder) : openedFor(type, holder, player);
         } catch (ReflectiveOperationException | RuntimeException | LinkageError e) {
+            if (!warned) {
+                warned = true;
+                Bukkit.getLogger().warning("[ShulkerPacks] Could not read Brewery's " + name + " (" + e
+                        + "); boxes will not open over Brewery screens.");
+            }
             return false;
         }
     }
 
     /*
-    Brewery#Barrel.get(spigot) returns the barrel Brewery has registered there; a removed barrel or one that was
-    never registered gives null or another object.
+    Brewery keeps every barrel it knows in a static list and drops a barrel from it when the barrel is removed.
      */
-    private static boolean isRegisteredBarrel(Class<?> type, Object barrel, Player player) throws ReflectiveOperationException {
-        Object spigot = type.getMethod("getSpigot").invoke(barrel);
-        if (!(spigot instanceof Block)) {
+    private static boolean isRegisteredBarrel(Class<?> type, Object barrel) throws ReflectiveOperationException {
+        if (type != barrelType) {
+            barrelList = type.getField("barrels");
+            barrelType = type;
+        }
+        Object list = barrelList.get(null);
+        if (!(list instanceof Collection)) {
             return false;
         }
-        Block block = (Block) spigot;
-        if (!block.getWorld().equals(player.getWorld())
-                || !block.getWorld().isChunkLoaded(block.getX() >> 4, block.getZ() >> 4)) {
-            return false;
+        for (Object known : (Collection<?>) list) {
+            if (known == barrel) {
+                return true;
+            }
         }
-        return type.getMethod("get", Block.class).invoke(null, block) == barrel;
+        return false;
     }
 
     /*
     A sealing table screen is made for one player and remembers who.
      */
     private static boolean openedFor(Class<?> type, Object sealer, Player player) throws ReflectiveOperationException {
-        Field field = type.getDeclaredField("player");
-        field.setAccessible(true);
-        return field.get(sealer) == player;
+        if (type != sealerType) {
+            Field field = type.getDeclaredField("player");
+            field.setAccessible(true);
+            sealerPlayer = field;
+            sealerType = type;
+        }
+        Object opener = sealerPlayer.get(sealer);
+        return opener instanceof Player && ((Player) opener).getUniqueId().equals(player.getUniqueId());
     }
 }

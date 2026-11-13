@@ -12,7 +12,7 @@ This is a fork of [christopherwalkerml/ShulkerPacks](https://github.com/christop
 
 - 開著 [Brewery](https://github.com/DieReicheErethons/Brewery) 的**酒桶**（大、小）和**密封臺**（sealing table）時，物品欄裡的盒子也能開
   - Brewery 用 `Bukkit#createInventory` 開這兩個畫面：holder 是它自己的類別、沒有位置。1.8.0.3 的「那個位置上要有對應的方塊」看不到它們，所以當成插件 GUI 擋掉
-  - 只認**真的** Brewery 畫面，類別名稱一樣不算數：holder 的類別要是執行中的 Brewery 插件自己載入的、畫面要是那個 holder 自己的畫面；酒桶另外要 Brewery 目前在那個龍頭登記的就是這一個酒桶，密封臺要是替這個玩家開的
+  - 只認**真的** Brewery 畫面，類別名稱一樣不算數：holder 的類別要是執行中的 Brewery 插件自己載入的、畫面要是那個 holder 自己的畫面；酒桶另外要還在 Brewery 的酒桶清單裡（被拆掉的不算），密封臺要是替這個玩家開的。只讀 Brewery 的狀態，不呼叫它的方法
   - 用反射找 Brewery：編譯和執行都不需要它，沒裝 Brewery 的伺服器行為不變。反射失敗（例如 Brewery 改了名稱）就照舊當成插件 GUI、不開
   - 密封臺被盒子的畫面蓋掉時，Brewery 會把密封臺裡的東西丟在玩家腳下（Brewery 本來關掉密封臺就是這樣）
 - 其他插件 GUI 照舊不開
