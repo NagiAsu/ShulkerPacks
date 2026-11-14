@@ -38,6 +38,11 @@
  *    counts the crafter's result slot as part of the crafter's inventory, so every player slot below a crafter is
  *    reported one off and the item in the reported slot never matched the clicked one. On a crafter screen the
  *    slot is now worked out from the raw slot. The result slot still never opens.
+ *
+ * Modified by NagiAsu, 2026-11-13 (1.8.0.5):
+ *  - A box in the player's own inventory now opens while a barrel or sealing table of the Brewery plugin is open.
+ *    Brewery opens them as custom inventories with no location, so they were treated as plugin GUIs.
+ *    See BreweryScreens for how a real one is told apart from a lookalike. Other plugin GUIs still block opening.
  */
 package me.darkolythe.shulkerpacks;
 
@@ -186,7 +191,7 @@ public class ShulkerListener implements Listener {
     a real block would give. What such a menu cannot have is a matching block: it points at the player's feet,
     or at 0,0,0. So ask the block the screen says it belongs to whether it opens this kind of screen.
      */
-    private boolean canOpenOver(Inventory top) {
+    private boolean canOpenOver(Inventory top, Player player) {
         InventoryType type = top.getType();
         // the player's own inventory screen
         if (type == InventoryType.CRAFTING) {
@@ -196,6 +201,10 @@ public class ShulkerListener implements Listener {
         Object holder = top.getHolder(false);
         // the player's own ender chest, a villager's trades, a horse, a minecart with a chest
         if (holder instanceof Entity) {
+            return true;
+        }
+        // Brewery's barrels and sealing tables: custom inventories with no location, checked on their own
+        if (BreweryScreens.isReal(holder, top, player)) {
             return true;
         }
         Location at = top.getLocation();
@@ -275,7 +284,7 @@ public class ShulkerListener implements Listener {
             return;
         }
         // the box must be in the player's own inventory; the upper half may be a vanilla container, never a plugin GUI
-        if (!canOpenOver(event.getView().getTopInventory())) {
+        if (!canOpenOver(event.getView().getTopInventory(), player)) {
             return;
         }
         int slot = ownSlot(event, player);
@@ -361,7 +370,7 @@ public class ShulkerListener implements Listener {
             if (current != null && !switching) {
                 return;
             }
-            if ((!switching && !canOpenOver(top)) || !isEmpty(player.getItemOnCursor())) {
+            if ((!switching && !canOpenOver(top, player)) || !isEmpty(player.getItemOnCursor())) {
                 return;
             }
             if (switching && slot == current.slot) {
