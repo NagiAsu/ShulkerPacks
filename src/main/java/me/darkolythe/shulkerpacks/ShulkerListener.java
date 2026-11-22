@@ -43,6 +43,13 @@
  *  - A box in the player's own inventory now opens while a barrel or sealing table of the Brewery plugin is open.
  *    Brewery opens them as custom inventories with no location, so they were treated as plugin GUIs.
  *    See BreweryScreens for how a real one is told apart from a lookalike. Other plugin GUIs still block opening.
+ *
+ * Modified by NagiAsu, 2026-11-22 (1.8.0.6):
+ *  - A box in the player's own inventory now opens while a menu of the DeluxeMenus plugin is open. The menu closes,
+ *    the box opens, and closing the box returns to the game. See DeluxeMenusScreens for how a menu is recognised.
+ *    Items inside the menu never open. Menus of other plugins still block opening.
+ *  - DeluxeMenus cancels every click while one of its menus is open, the player's own inventory included, before
+ *    this plugin sees the click. Over a DeluxeMenus menu only, an already cancelled click may still open a box.
  */
 package me.darkolythe.shulkerpacks;
 
@@ -207,6 +214,10 @@ public class ShulkerListener implements Listener {
         if (BreweryScreens.isReal(holder, top, player)) {
             return true;
         }
+        // DeluxeMenus menus: custom inventories with no location, checked on their own
+        if (DeluxeMenusScreens.isMenu(holder, top, player)) {
+            return true;
+        }
         Location at = top.getLocation();
         if (at == null || at.getWorld() == null
                 || !at.getWorld().isChunkLoaded(at.getBlockX() >> 4, at.getBlockZ() >> 4)) {
@@ -272,14 +283,22 @@ public class ShulkerListener implements Listener {
     }
 
     /*
-    Opening: only boxes in the player's own inventory
+    Opening: only boxes in the player's own inventory.
+    A click another plugin already cancelled is ignored, except over a DeluxeMenus menu: DeluxeMenus cancels every
+    click while its menu is open, including clicks on the player's own inventory, so the cancel says nothing there.
      */
-    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.HIGH)
     public void onOpenClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player)) {
             return;
         }
         Player player = (Player) event.getWhoClicked();
+        if (event.isCancelled()) {
+            Inventory top = event.getView().getTopInventory();
+            if (!DeluxeMenusScreens.isMenu(top.getHolder(false), top, player)) {
+                return;
+            }
+        }
         if (sessions.containsKey(player.getUniqueId()) || pending.contains(player.getUniqueId())) {
             return;
         }
