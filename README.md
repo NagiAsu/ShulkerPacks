@@ -8,6 +8,20 @@ This is a fork of [christopherwalkerml/ShulkerPacks](https://github.com/christop
 
 版號在上游版號後加一位：`1.8.0.0` 起。插件名稱、資料夾（`plugins/ShulkerPacks/`）、package、指令、權限節點和上游相同，沿用上游的 `config.yml` 就能直接換 jar。
 
+### 1.8.0.6
+
+- 開著 [DeluxeMenus](https://github.com/HelpChat/DeluxeMenus) 的**選單**時，物品欄裡的盒子也能開：選單關掉、盒子打開，關掉盒子後回到遊戲畫面
+  - DeluxeMenus 用 `Bukkit#createInventory` 開選單：holder 是它自己的類別、沒有位置，所以 1.8.0.2 起被當成插件 GUI 擋掉
+  - 判斷不看選單標題：holder 的類別要是 DeluxeMenus 的 `MenuHolder`、而且是執行中的 DeluxeMenus 插件自己載入的；畫面要是那個 holder 自己的畫面；選單要是替這個玩家開的。用反射找 DeluxeMenus：編譯和執行都不需要它，沒裝的伺服器行為不變。反射失敗就照舊當成插件 GUI、不開
+  - DeluxeMenus 開著選單時會取消所有點擊（包括點玩家自己的物品欄），而且比本插件先處理。所以**只有在 DeluxeMenus 的選單上**，已經被取消的點擊也能開盒；其他畫面照舊不理會被取消的點擊
+  - 限制：
+    - 所有 DeluxeMenus 選單都算，不分用途
+    - 在 DeluxeMenus 選單上，其他插件在本插件之前取消點擊也擋不住開盒（Bukkit 分不出是誰取消的）。其他插件取消開盒畫面的 `InventoryOpenEvent` 時照舊不開
+    - 別的插件自己 `new MenuHolder(...)` 當成 GUI 的 holder 時，也會被當成 DeluxeMenus 選單（只會關掉那個 GUI、打開盒子）
+    - 合成器型（`inventory_type: CRAFTER`）的 DeluxeMenus 選單打不開盒子：有 holder 的合成器畫面不是 `CrafterInventory`，格號換算不適用
+- 選單裡（上半部）的物品照舊不開，包括選單裡展示用的盒子
+- 其他插件 GUI 照舊不開
+
 ### 1.8.0.5
 
 - 開著 [Brewery](https://github.com/DieReicheErethons/Brewery) 的**酒桶**（大、小）和**密封臺**（sealing table）時，物品欄裡的盒子也能開
